@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2018 The strace developers.
+ * Copyright (c) 2018 The strace developers.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,21 +25,12 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "x86_64/get_scno.c"
+#ifndef AUDIT_ARCH_PPC
+# define AUDIT_ARCH_PPC 0x14
+#endif
 
-/* Return codes: 1 - ok, 0 - ignore, other - error. */
-static int
-arch_check_scno(struct tcb *tcp)
+int
+get_personality_from_syscall_info(const struct ptrace_syscall_info *sci)
 {
-
-	const kernel_ulong_t scno = ptrace_sci.entry.nr;
-
-	if (tcp->currpers == 0 && !(scno & __X32_SYSCALL_BIT)) {
-		error_msg("syscall_%" PRI_klu "(...) in unsupported "
-			  "64-bit mode of process PID=%d", scno, tcp->pid);
-		return 0;
-	}
-
-	tcp->scno = scno;
-	return 1;
+	return sci->arch == AUDIT_ARCH_PPC;
 }

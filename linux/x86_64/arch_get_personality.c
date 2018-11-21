@@ -25,21 +25,43 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "x86_64/get_scno.c"
+#ifndef AUDIT_ARCH_I386
+# define AUDIT_ARCH_I386 0x40000003
+#endif
 
-/* Return codes: 1 - ok, 0 - ignore, other - error. */
-static int
-arch_check_scno(struct tcb *tcp)
+int
+get_personality_from_syscall_info(const struct ptrace_syscall_info *sci)
 {
+	unsigned int pers = sci->arch == AUDIT_ARCH_I386;
 
-	const kernel_ulong_t scno = ptrace_sci.entry.nr;
-
-	if (tcp->currpers == 0 && !(scno & __X32_SYSCALL_BIT)) {
-		error_msg("syscall_%" PRI_klu "(...) in unsupported "
-			  "64-bit mode of process PID=%d", scno, tcp->pid);
-		return 0;
+#ifndef X32
+	switch(sci->op) {
+		case PTRACE_SYSCALL_INFO_ENTRY:
+		case PTRACE_SYSCALL_INFO_SECCOMP:
+			break;
+		default:
+			return -1;
 	}
 
-	tcp->scno = scno;
-	return 1;
+	kernel_ulong_t scno = sci->entry.nr;
+
+#ifndef __X32_SYSCALL_BIT
+# define __X32_SYSCALL_BIT	0x40000000
+#endif
+
+	if (pers == 0 && (scno & __X32_SYSCALL_BIT)) {
+		/*
+		 * Syscall number -1 requires special treatment:
+		 * it might be a side effect of SECCOMP_RET_ERRNO
+		 * filtering that sets orig_rax to -1
+		 * in some versions of linux kernel.
+		 * If that is the case, then
+		 * __X32_SYSCALL_BIT logic does not apply.
+		 */
+		if (scno != (kernel_ulong_t) -1)
+			pers = 2;
+	}
+#endif /* !X32 */
+
+	return pers;
 }
